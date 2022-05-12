@@ -1,0 +1,48 @@
+concurrent = 25   # All registered Runners can run up to 50 concurrent builds
+listen_address = "0.0.0.0:9253"
+[[runners]]
+  url = "$URL_GITLAB"
+  token = "$TOKEN_GITLAB"             # Note this is different from the registration token used by `gitlab-runner register`
+  name = "ghgitlab-runner"
+  executor = "docker+machine"        # This Runner is using the 'docker+machine' executor
+  limit = 30                         # This Runner can execute up to 10 builds (created machines)
+  pre_build_script = "export DOCKER_HOST=tcp://docker:2375 && [ -f /root/.ssh/known_hosts ] &&  rm /root/.ssh/known_hosts && chmod 0700 /root/.ssh && [ ! -f /root/.ssh/known_hosts ] && touch /root/.ssh/known_hosts && ssh-keyscan -t rsa bmg.rarolabs.com >> /root/.ssh/known_hosts && cat /root/.ssh/id_rsa.pub"
+  environment = ["DOCKER_DRIVER=overlay2", "DOCKER_TLS_CERTDIR="]
+  [runners.docker]
+    image = "docker:19-dind"
+    #memory = "4096m"
+    #memory_swap = "8092m"
+    tls_cert_path = ""
+    privileged = true
+  [runners.machine]
+    IdleCount = 2                    # The amount of idle machines we require for CI if build queue is empty
+    IdleTime = 60                   # Each machine can be idle for up to 600 seconds, then destroyed
+    MachineName = "gitlab-runner-autoscale-%s"    # Each machine will have a unique name ('%s' is required and generates a random number)
+    MachineDriver = "amazonec2"   # Docker Machine is using the 'digitalocean' driver
+    MachineOptions = [
+      "amazonec2-access-key=$ACCESS_KEY",    # usuário "gitlab"
+      "amazonec2-secret-key=$SECRET_KEY",
+      "amazonec2-ami=$AMI_EC2",   # Ubuntu 20.04
+      "amazonec2-region=$REGION_AWS",
+      "amazonec2-vpc-id=$VPC_AWS",
+      "amazonec2-subnet-id=$SUBNET_AWS",
+      "amazonec2-zone=$ZONE_AWS",
+      "amazonec2-use-private-address=true",
+      "amazonec2-tags=gitlab-aws-autoscaler,gitlab,true,gitlab-runner-autoscale,true",
+      "amazonec2-security-group=$SECURITY_GROUP_EC2",
+      "amazonec2-instance-type=$INSTANCE_TYPE", #Recommended m4.xlarge
+      "amazonec2-root-size=150", #Size your instance
+      "amazonec2-request-spot-instance=true",
+      "amazonec2-spot-price=0.15"
+    ]
+  [runners.cache]
+    Type = "s3"
+    Shared = true
+    [runners.cache.s3]
+      ServerAddress = "s3.amazonaws.com"
+      BucketLocation='$REGION_AWS'
+      AccessKey = "$ACCESS_KEY"
+      SecretKey = "$SECRET_KEY"
+      BucketName = "$NAME_BUCKET"
+      Insecure = true
+    [runners.cache.gcs]
